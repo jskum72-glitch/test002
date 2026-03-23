@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학생 출석 관리 시스템</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-blue: #2563eb;
+            --bg-blue: #1e3a8a;
+            --white: #ffffff;
+            --gray-100: #f3f4f6;
+            --present: #10b981;
+            --absent: #ef4444;
+            --late: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Pretendard', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-blue);
+            background-image: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--white);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            color: var(--bg-blue);
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 1.5rem;
+        }
+
+        /* 입력 폼 */
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid var(--gray-100);
+            border-radius: 10px;
+            font-size: 1rem;
+            margin-bottom: 15px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-blue);
+        }
+
+        .status-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .status-btn {
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            color: white;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        .status-btn:active { transform: scale(0.98); }
+        .btn-present { background-color: var(--present); }
+        .btn-absent { background-color: var(--absent); }
+        .btn-late { background-color: var(--late); }
+
+        /* 리스트 영역 */
+        .record-title {
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-weight: 700;
+            color: #374151;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .record-list {
+            list-style: none;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .record-item {
+            background: var(--gray-100);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .info .name { font-weight: 700; color: #1f2937; }
+        .info .time { font-size: 0.8rem; color: #6b7280; display: block; }
+
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        /* 스크롤바 디자인 */
+        .record-list::-webkit-scrollbar { width: 6px; }
+        .record-list::-webkit-scrollbar-track { background: transparent; }
+        .record-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        @media (max-width: 480px) {
+            .container { padding: 20px; }
+            h1 { font-size: 1.25rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>👨‍🎓 학생 출석 체크</h1>
+    
+    <div class="input-group">
+        <input type="text" id="studentName" placeholder="학생 이름을 입력하세요" autocomplete="off">
+        <div class="status-buttons">
+            <button class="status-btn btn-present" onclick="addAttendance('출석')">출석</button>
+            <button class="status-btn btn-absent" onclick="addAttendance('결석')">결석</button>
+            <button class="status-btn btn-late" onclick="addAttendance('지각')">지각</button>
+        </div>
+    </div>
+
+    <div class="record-title">
+        최근 출석 기록
+        <span id="count" style="font-size: 0.9rem; color: var(--primary-blue);">0건</span>
+    </div>
+    
+    <ul class="record-list" id="recordList">
+        <!-- 데이터가 여기에 동적으로 추가됩니다 -->
+    </ul>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { 
+        getFirestore, 
+        collection, 
+        addDoc, 
+        query, 
+        orderBy, 
+        onSnapshot, 
+        serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // FIXME: 본인의 Firebase 설정으로 교체하세요
+    const firebaseConfig = {
+  apiKey: "AIzaSyA1lcaarjY3Z1Ihb-TYMuIplmJSscobS2g",
+  authDomain: "test5-d8ce8.firebaseapp.com",
+  projectId: "test5-d8ce8",
+  storageBucket: "test5-d8ce8.firebasestorage.app",
+  messagingSenderId: "964388993995",
+  appId: "1:964388993995:web:8b5f65d09c27f2254f144e"
+};
+
+    // Firebase 초기화
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const attendanceCol = collection(db, "attendance");
+
+    // 출석 데이터 추가 함수
+    window.addAttendance = async (status) => {
+        const nameInput = document.getElementById('studentName');
+        const name = nameInput.value.trim();
+
+        if (!name) {
+            alert("이름을 입력해주세요!");
+            return;
+        }
+
+        try {
+            await addDoc(attendanceCol, {
+                name: name,
+                status: status,
+                timestamp: serverTimestamp()
+            });
+            nameInput.value = ""; // 입력창 초기화
+        } catch (e) {
+            console.error("Error adding document: ", e);
+            alert("저장에 실패했습니다.");
+        }
+    };
+
+    // 실시간 데이터 감시 및 화면 업데이트
+    const q = query(attendanceCol, orderBy("timestamp", "desc"));
+    onSnapshot(q, (snapshot) => {
+        const listElement = document.getElementById('recordList');
+        const countElement = document.getElementById('count');
+        listElement.innerHTML = "";
+        countElement.innerText = `${snapshot.size}건`;
+
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            const date = data.timestamp ? data.timestamp.toDate().toLocaleString() : "기록 중...";
+            
+            const li = document.createElement('li');
+            li.className = 'record-item';
+            
+            // 상태별 색상 설정
+            let badgeColor = 'var(--present)';
+            if(data.status === '결석') badgeColor = 'var(--absent)';
+            if(data.status === '지각') badgeColor = 'var(--late)';
+
+            li.innerHTML = `
+                <div class="info">
+                    <span class="name">${data.name}</span>
+                    <span class="time">${date}</span>
+                </div>
+                <span class="badge" style="background-color: ${badgeColor}">${data.status}</span>
+            `;
+            listElement.appendChild(li);
+        });
+    });
+</script>
+
+</body>
+</html>
